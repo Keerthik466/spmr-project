@@ -1,17 +1,25 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import json
 import pickle
+import numpy as np
+import os
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for Android app communication
+CORS(app)
 
-# Dummy ML model load (replace with your real model later)
+# Full path for the model (no scaler)
+model_path = "C:\\Users\\ADMIN1\\Desktop\\spmr-project\\backend\\model.pkl"
+
+# Load model (no scaler needed)
 try:
-    with open("model.pkl", "rb") as f:
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at {model_path}")
+
+    with open(model_path, "rb") as f:
         model = pickle.load(f)
-except:
-    model = None  # Optional: model isn't ready yet
+except Exception as e:
+    model = None
+    print("Model not loaded:", str(e))
 
 @app.route('/')
 def home():
@@ -21,22 +29,35 @@ def home():
 def receive_vitals():
     try:
         data = request.get_json()
-        print("Received vitals:", data)
+        heart_rate = data.get('heart_rate')
+        spo2 = data.get('spo2')
+        temperature = data.get('temperature')
 
-        # Example: Extract features and make dummy prediction
-        if model:
-            features = [data['heart_rate'], data['spo2'], data['temperature']]
-            prediction = model.predict([features])[0]
-            return jsonify({'status': 'ok', 'prediction': prediction})
-        else:
-            return jsonify({'status': 'ok', 'message': 'Model not loaded, received vitals successfully.'})
+        if None in (heart_rate, spo2, temperature):
+            return jsonify({'status': 'error', 'message': 'Missing input values'}), 400
+
+        # Check if model is loaded
+        if model is None:
+            return jsonify({'status': 'error', 'message': 'Model not loaded'}), 500
+
+        # Features array (no scaling here)
+        features = np.array([[heart_rate, spo2, temperature]])
+
+        # Make prediction using the model
+        prediction = model.predict(features)[0]
+
+        return jsonify({
+            'status': 'ok',
+            'prediction': int(prediction),
+            'emergency': bool(prediction)
+        })
+
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/alert', methods=['GET'])
 def alert():
-    # Dummy response (you can modify later to return real alerts based on state)
-    return jsonify({'alert': 'No emergency detected.'})
+    return jsonify({'alert': 'No emergency detected'})
 
 if __name__ == '__main__':
     app.run(debug=True)
