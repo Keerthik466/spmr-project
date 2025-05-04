@@ -1,29 +1,50 @@
 import pandas as pd
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report, confusion_matrix
 import pickle
 
-# 1. Sample dataset (you can replace with real one later)
-data = pd.DataFrame({
-    'heart_rate': [72, 120, 90, 65, 140],
-    'spo2': [98, 92, 95, 99, 85],
-    'temperature': [98.6, 101.2, 97.8, 98.4, 102.5],
-    'emergency': [0, 1, 0, 0, 1]  # 1 = emergency
-})
+# Step 1: Load dataset
+df = pd.read_csv("vitals.csv")
 
-# 2. Features and Labels
-X = data[['heart_rate', 'spo2', 'temperature']]
-y = data['emergency']
+# Step 2: Check and clean
+print("Initial data shape:", df.shape)
+df.dropna(inplace=True)
+df = df[(df['heart_rate'] >= 30) & (df['heart_rate'] <= 180)]
+df = df[(df['spo2'] >= 70) & (df['spo2'] <= 100)]
+df = df[(df['temperature'] >= 95) & (df['temperature'] <= 105)]
 
-# 3. Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+# Step 3: Features and Labels
+X = df[['heart_rate', 'spo2', 'temperature']]
+y = df['emergency']
 
-# 4. Model training
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
+# Step 4: Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# 5. Save model
-with open('model.pkl', 'wb') as f:
-    pickle.dump(model, f)
+# Step 5: Pipeline with scaling + RandomForest
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('rf', RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42))
+])
 
-print("✅ Model trained and saved as model.pkl")
+# Step 6: Train
+pipeline.fit(X_train, y_train)
+
+# Step 7: Evaluate
+y_pred = pipeline.predict(X_test)
+print("Classification Report:\n", classification_report(y_test, y_pred))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+
+# Step 8: Cross-validation score
+cv_scores = cross_val_score(pipeline, X, y, cv=5)
+print("Cross-Validation Accuracy Scores:", cv_scores)
+print("Average CV Score:", np.mean(cv_scores))
+
+# Step 9: Save model
+with open("model.pkl", "wb") as f:
+    pickle.dump(pipeline, f)
+
+print("✅ Sophisticated model trained and saved as model.pkl")
